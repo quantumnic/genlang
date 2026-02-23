@@ -1,0 +1,72 @@
+[
+  {
+    "avg_fitness": 9.798358140795012e+81,
+    "avg_size": 59.186,
+    "best_fitness": 1296.2962309823092,
+    "best_program": "-(log(if (!(8.69) > if x0 then (5.52 - x0) else 9) then !((-(-6) / x0)) else if if (9.25 == x0) then (x0 * 2) else x0 then (-5 == sin(-7.28)) else -(-2.24)))",
+    "generation": 0
+  },
+  {
+    "avg_fitness": 4.129127867500428e+83,
+    "avg_size": 35.476,
+    "best_fitness": 1.0,
+    "best_program": "(abs(abs((x0 * x0))) + x0)",
+    "generation": 1
+  },
+  {
+    "avg_fitness": 4.129127867500428e+83,
+    "avg_size": 27.824,
+    "best_fitness": 1.0,
+    "best_program": "(abs(abs((x0 * x0))) + x0)",
+    "generation": 2
+  },
+  {
+    "avg_fitness": 4.129127867500428e+83,
+    "avg_size": 26.206,
+    "best_fitness": 1.0,
+    "best_program": "(abs(abs((x0 * x0))) + x0)",
+    "generation": 3
+  },
+  {
+    "avg_fitness": 3.1160136858699245e+23,
+    "avg_size": 25.128,
+    "best_fitness": 1.0,
+    "best_program": "(abs(abs((x0 * x0))) + x0)",
+    "generation": 4
+  },
+  {
+    "avg_fitness": 70136.74297791847,
+    "avg_size": 24.534,
+    "best_fitness": 1.0,
+    "best_program": "(abs(abs((x0 * x0))) + x0)",
+    "generation": 5
+  },
+  {
+    "avg_fitness": 323323.2580505255,
+    "avg_size": 20.054,
+    "best_fitness": 1.0,
+    "best_program": "(abs(abs((x0 * x0))) + x0)",
+    "generation": 6
+  },
+  {
+    "avg_fitness": 366968.59034723585,
+    "avg_size": 18.052,
+    "best_fitness": 1.0,
+    "best_program": "(abs(abs((x0 * x0))) + x0)",
+    "generation": 7
+  },
+  {
+    "avg_fitness": 168735713217786.34,
+    "avg_size": 15.216,
+    "best_fitness": 1.0,
+    "best_program": "(abs(abs((x0 * x0))) + x0)",
+    "generation": 8
+  },
+  {
+    "avg_fitness": 683973.6578449048,
+    "avg_size": 13.906,
+    "best_fitness": 0.0,
+    "best_program": "(abs(abs((x0 * x0))) + (abs((abs(abs((x0 * x0))) + if x0 then x0 else x0)) / x0))",
+    "generation": 9
+  }
+]

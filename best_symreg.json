@@ -1,0 +1,84 @@
+{
+  "version": "0.2.0",
+  "fitness": 0.0,
+  "generation": null,
+  "description": "symbolic regression: x² + x + 1",
+  "genome": {
+    "BinOp": [
+      "Add",
+      {
+        "MathFn": [
+          "Abs",
+          {
+            "MathFn": [
+              "Abs",
+              {
+                "BinOp": [
+                  "Mul",
+                  {
+                    "Var": 0
+                  },
+                  {
+                    "Var": 0
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "BinOp": [
+          "Div",
+          {
+            "MathFn": [
+              "Abs",
+              {
+                "BinOp": [
+                  "Add",
+                  {
+                    "MathFn": [
+                      "Abs",
+                      {
+                        "MathFn": [
+                          "Abs",
+                          {
+                            "BinOp": [
+                              "Mul",
+                              {
+                                "Var": 0
+                              },
+                              {
+                                "Var": 0
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "If": [
+                      {
+                        "Var": 0
+                      },
+                      {
+                        "Var": 0
+                      },
+                      {
+                        "Var": 0
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "Var": 0
+          }
+        ]
+      }
+    ]
+  }
+}
