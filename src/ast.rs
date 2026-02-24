@@ -22,6 +22,13 @@ pub enum Node {
     If(Box<Node>, Box<Node>, Box<Node>),
     /// Built-in math function
     MathFn(MathFn, Box<Node>),
+    /// Bounded loop: Loop(iterations_expr, body, accumulator_init)
+    /// Executes body `iterations` times, feeding result back as x_loop variable
+    Loop(Box<Node>, Box<Node>, Box<Node>),
+    /// Read from indexed memory: MemRead(index_expr)
+    MemRead(Box<Node>),
+    /// Write to indexed memory: MemWrite(index_expr, value_expr)
+    MemWrite(Box<Node>, Box<Node>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -61,8 +68,11 @@ impl Node {
         match self {
             Node::IntConst(_) | Node::FloatConst(_) | Node::BoolConst(_) | Node::Var(_) => 1,
             Node::BinOp(_, l, r) | Node::Cmp(_, l, r) => 1 + l.size() + r.size(),
-            Node::UnaryOp(_, c) | Node::MathFn(_, c) => 1 + c.size(),
-            Node::If(cond, then, els) => 1 + cond.size() + then.size() + els.size(),
+            Node::UnaryOp(_, c) | Node::MathFn(_, c) | Node::MemRead(c) => 1 + c.size(),
+            Node::If(cond, then, els) | Node::Loop(cond, then, els) => {
+                1 + cond.size() + then.size() + els.size()
+            }
+            Node::MemWrite(idx, val) => 1 + idx.size() + val.size(),
         }
     }
 
@@ -70,9 +80,11 @@ impl Node {
     pub fn depth(&self) -> usize {
         match self {
             Node::IntConst(_) | Node::FloatConst(_) | Node::BoolConst(_) | Node::Var(_) => 0,
-            Node::BinOp(_, l, r) | Node::Cmp(_, l, r) => 1 + l.depth().max(r.depth()),
-            Node::UnaryOp(_, c) | Node::MathFn(_, c) => 1 + c.depth(),
-            Node::If(a, b, c) => 1 + a.depth().max(b.depth()).max(c.depth()),
+            Node::BinOp(_, l, r) | Node::Cmp(_, l, r) | Node::MemWrite(l, r) => {
+                1 + l.depth().max(r.depth())
+            }
+            Node::UnaryOp(_, c) | Node::MathFn(_, c) | Node::MemRead(c) => 1 + c.depth(),
+            Node::If(a, b, c) | Node::Loop(a, b, c) => 1 + a.depth().max(b.depth()).max(c.depth()),
         }
     }
 
@@ -92,8 +104,13 @@ impl Node {
             Node::BinOp(_, l, r) | Node::Cmp(_, l, r) => l
                 .get_node_inner(target, count)
                 .or_else(|| r.get_node_inner(target, count)),
-            Node::UnaryOp(_, c) | Node::MathFn(_, c) => c.get_node_inner(target, count),
-            Node::If(a, b, c) => a
+            Node::UnaryOp(_, c) | Node::MathFn(_, c) | Node::MemRead(c) => {
+                c.get_node_inner(target, count)
+            }
+            Node::MemWrite(l, r) => l
+                .get_node_inner(target, count)
+                .or_else(|| r.get_node_inner(target, count)),
+            Node::If(a, b, c) | Node::Loop(a, b, c) => a
                 .get_node_inner(target, count)
                 .or_else(|| b.get_node_inner(target, count))
                 .or_else(|| c.get_node_inner(target, count)),
@@ -114,14 +131,14 @@ impl Node {
         *count += 1;
         match self {
             Node::IntConst(_) | Node::FloatConst(_) | Node::BoolConst(_) | Node::Var(_) => {}
-            Node::BinOp(_, l, r) | Node::Cmp(_, l, r) => {
+            Node::BinOp(_, l, r) | Node::Cmp(_, l, r) | Node::MemWrite(l, r) => {
                 l.replace_node_inner(target, replacement.clone(), count);
                 r.replace_node_inner(target, replacement, count);
             }
-            Node::UnaryOp(_, c) | Node::MathFn(_, c) => {
+            Node::UnaryOp(_, c) | Node::MathFn(_, c) | Node::MemRead(c) => {
                 c.replace_node_inner(target, replacement, count);
             }
-            Node::If(a, b, c) => {
+            Node::If(a, b, c) | Node::Loop(a, b, c) => {
                 a.replace_node_inner(target, replacement.clone(), count);
                 b.replace_node_inner(target, replacement.clone(), count);
                 c.replace_node_inner(target, replacement, count);
@@ -155,7 +172,7 @@ impl Node {
     }
 
     fn random_function<R: Rng>(rng: &mut R, max_depth: usize, num_vars: usize) -> Node {
-        match rng.gen_range(0..5) {
+        match rng.gen_range(0..8) {
             0 => {
                 let ops = [BinOp::Add, BinOp::Sub, BinOp::Mul, BinOp::Div];
                 Node::BinOp(
@@ -191,10 +208,29 @@ impl Node {
                     Box::new(Node::random(rng, max_depth - 1, num_vars)),
                 )
             }
-            _ => {
+            4 => {
                 let ops = [UnaryOp::Neg, UnaryOp::Not];
                 Node::UnaryOp(
                     ops[rng.gen_range(0..2)],
+                    Box::new(Node::random(rng, max_depth - 1, num_vars)),
+                )
+            }
+            5 => {
+                // Bounded loop
+                Node::Loop(
+                    Box::new(Node::IntConst(rng.gen_range(1..8))),
+                    Box::new(Node::random(rng, max_depth - 1, num_vars)),
+                    Box::new(Node::random(rng, max_depth - 1, num_vars)),
+                )
+            }
+            6 => {
+                // Memory read
+                Node::MemRead(Box::new(Node::IntConst(rng.gen_range(0..16))))
+            }
+            _ => {
+                // Memory write
+                Node::MemWrite(
+                    Box::new(Node::IntConst(rng.gen_range(0..16))),
                     Box::new(Node::random(rng, max_depth - 1, num_vars)),
                 )
             }
@@ -250,6 +286,18 @@ impl Node {
                     MathFn::Log => "log",
                 };
                 format!("{name}({})", c.to_expr())
+            }
+            Node::Loop(iters, body, init) => {
+                format!(
+                    "loop({}, {}, {})",
+                    iters.to_expr(),
+                    body.to_expr(),
+                    init.to_expr()
+                )
+            }
+            Node::MemRead(idx) => format!("mem[{}]", idx.to_expr()),
+            Node::MemWrite(idx, val) => {
+                format!("mem[{}] = {}", idx.to_expr(), val.to_expr())
             }
         }
     }

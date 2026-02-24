@@ -37,6 +37,9 @@ fn tree_print_inner(node: &Node, buf: &mut String, prefix: &str, is_last: bool) 
             CmpOp::Eq => "==".into(),
         },
         Node::If(_, _, _) => "if".into(),
+        Node::Loop(_, _, _) => "loop".into(),
+        Node::MemRead(_) => "mem[]".into(),
+        Node::MemWrite(_, _) => "mem[]=".into(),
         Node::MathFn(f, _) => match f {
             MathFn::Abs => "abs".into(),
             MathFn::Sqrt => "sqrt".into(),
@@ -59,9 +62,9 @@ fn tree_print_inner(node: &Node, buf: &mut String, prefix: &str, is_last: bool) 
 
     let children: Vec<&Node> = match node {
         Node::IntConst(_) | Node::FloatConst(_) | Node::BoolConst(_) | Node::Var(_) => vec![],
-        Node::BinOp(_, l, r) | Node::Cmp(_, l, r) => vec![l, r],
-        Node::UnaryOp(_, c) | Node::MathFn(_, c) => vec![c],
-        Node::If(a, b, c) => vec![a, b, c],
+        Node::BinOp(_, l, r) | Node::Cmp(_, l, r) | Node::MemWrite(l, r) => vec![l, r],
+        Node::UnaryOp(_, c) | Node::MathFn(_, c) | Node::MemRead(c) => vec![c],
+        Node::If(a, b, c) | Node::Loop(a, b, c) => vec![a, b, c],
     };
 
     for (i, child) in children.iter().enumerate() {
@@ -99,6 +102,9 @@ fn node_label(node: &Node) -> String {
             CmpOp::Eq => "eq".into(),
         },
         Node::If(_, _, _) => "if".into(),
+        Node::Loop(_, _, _) => "loop".into(),
+        Node::MemRead(_) => "mem_read".into(),
+        Node::MemWrite(_, _) => "mem_write".into(),
         Node::MathFn(f, _) => match f {
             MathFn::Abs => "abs".into(),
             MathFn::Sqrt => "sqrt".into(),
@@ -118,9 +124,9 @@ fn to_mermaid_inner(node: &Node, buf: &mut String, counter: &mut usize) -> usize
 
     let children: Vec<&Node> = match node {
         Node::IntConst(_) | Node::FloatConst(_) | Node::BoolConst(_) | Node::Var(_) => vec![],
-        Node::BinOp(_, l, r) | Node::Cmp(_, l, r) => vec![l, r],
-        Node::UnaryOp(_, c) | Node::MathFn(_, c) => vec![c],
-        Node::If(a, b, c) => vec![a, b, c],
+        Node::BinOp(_, l, r) | Node::Cmp(_, l, r) | Node::MemWrite(l, r) => vec![l, r],
+        Node::UnaryOp(_, c) | Node::MathFn(_, c) | Node::MemRead(c) => vec![c],
+        Node::If(a, b, c) | Node::Loop(a, b, c) => vec![a, b, c],
     };
 
     for child in children {

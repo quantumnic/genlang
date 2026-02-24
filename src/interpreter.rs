@@ -40,10 +40,16 @@ pub enum ExecError {
     InvalidValue,
 }
 
-/// Sandboxed interpreter with step limit.
+/// Sandboxed interpreter with step limit and memory.
 pub struct Interpreter {
     pub step_limit: usize,
     steps: usize,
+    /// Shared memory slots for Loop/MemRead/MemWrite (16 slots).
+    pub memory: Vec<f64>,
+    /// Loop accumulator (accessible as a special variable during loop body).
+    loop_acc: f64,
+    /// Loop iteration counter.
+    loop_iter: f64,
 }
 
 impl Default for Interpreter {
@@ -51,6 +57,9 @@ impl Default for Interpreter {
         Self {
             step_limit: 10_000,
             steps: 0,
+            memory: vec![0.0; 16],
+            loop_acc: 0.0,
+            loop_iter: 0.0,
         }
     }
 }
@@ -60,6 +69,9 @@ impl Interpreter {
         Self {
             step_limit,
             steps: 0,
+            memory: vec![0.0; 16],
+            loop_acc: 0.0,
+            loop_iter: 0.0,
         }
     }
 
@@ -136,12 +148,61 @@ impl Interpreter {
                     Ok(Value::Float(result))
                 }
             }
+            Node::Loop(iters_node, body, init) => {
+                let iters = self.eval(iters_node, vars)?.to_f64().round() as i64;
+                let iters = iters.clamp(0, 100) as usize; // bounded to prevent infinite loops
+                let mut acc = self.eval(init, vars)?.to_f64();
+                let old_acc = self.loop_acc;
+                let old_iter = self.loop_iter;
+                for i in 0..iters {
+                    self.loop_acc = acc;
+                    self.loop_iter = i as f64;
+                    acc = self.eval(body, vars)?.to_f64();
+                }
+                self.loop_acc = old_acc;
+                self.loop_iter = old_iter;
+                if acc.is_nan() || acc.is_infinite() {
+                    Ok(Value::Float(0.0))
+                } else {
+                    Ok(Value::Float(acc))
+                }
+            }
+            Node::MemRead(idx_node) => {
+                let idx = self.eval(idx_node, vars)?.to_f64().round() as i64;
+                let idx = idx.rem_euclid(self.memory.len() as i64) as usize;
+                Ok(Value::Float(self.memory[idx]))
+            }
+            Node::MemWrite(idx_node, val_node) => {
+                let idx = self.eval(idx_node, vars)?.to_f64().round() as i64;
+                let idx = idx.rem_euclid(self.memory.len() as i64) as usize;
+                let val = self.eval(val_node, vars)?.to_f64();
+                let val = if val.is_nan() || val.is_infinite() {
+                    0.0
+                } else {
+                    val
+                };
+                self.memory[idx] = val;
+                Ok(Value::Float(val))
+            }
         }
     }
 
-    /// Reset step counter for reuse.
+    /// Reset step counter and memory for reuse.
     pub fn reset(&mut self) {
         self.steps = 0;
+        self.memory.fill(0.0);
+        self.loop_acc = 0.0;
+        self.loop_iter = 0.0;
+    }
+
+    /// Get loop accumulator value (for use as a special variable).
+    pub fn loop_acc(&self) -> f64 {
+        self.loop_acc
+    }
+
+    /// Get loop iteration counter.
+    pub fn loop_iter(&self) -> f64 {
+        self.loop_iter
     }
 
     /// Get current step count.

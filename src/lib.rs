@@ -3,6 +3,8 @@ pub mod genetic;
 pub mod interpreter;
 pub mod io;
 pub mod island;
+pub mod novelty;
 pub mod pareto;
 pub mod problems;
+pub mod speciation;
 pub mod visualization;

@@ -131,6 +131,132 @@ pub fn fibonacci<R: Rng>(
     evolve(rng, config, &fitness)
 }
 
+/// Sorting network evolution: evolve a comparator network that sorts small arrays.
+///
+/// The genome encodes a comparison function: given two values (x0, x1),
+/// it should return negative if x0 < x1 (keep order), positive if x0 > x1 (swap).
+/// We test the evolved comparator as a bubble-sort comparator on small arrays.
+pub fn sorting_network<R: Rng>(
+    rng: &mut R,
+    array_size: usize,
+    config: &GpConfig,
+) -> (Node, f64, Vec<GenStats>) {
+    // Generate test arrays
+    let test_arrays: Vec<Vec<f64>> = (0..20)
+        .map(|seed| {
+            let mut arr: Vec<f64> = (0..array_size)
+                .map(|i| {
+                    // Deterministic pseudo-random based on seed + i
+                    ((seed * 7 + i * 13 + 5) % 19) as f64 - 9.0
+                })
+                .collect();
+            // Shuffle a bit based on seed
+            if seed % 2 == 0 {
+                arr.reverse();
+            }
+            arr
+        })
+        .collect();
+
+    let fitness = move |tree: &Node| -> f64 {
+        let mut total_inversions = 0.0;
+        let mut interp = Interpreter::default();
+
+        for arr in &test_arrays {
+            // Use evolved comparator in bubble sort
+            let mut sorted = arr.clone();
+            let n = sorted.len();
+
+            for _ in 0..n {
+                for j in 0..n.saturating_sub(1) {
+                    interp.reset();
+                    // Feed pair to comparator
+                    if let Ok(val) = interp.eval(tree, &[sorted[j], sorted[j + 1]]) {
+                        if val.to_f64() > 0.0 {
+                            sorted.swap(j, j + 1);
+                        }
+                    }
+                }
+            }
+
+            // Count inversions in result (0 = perfectly sorted)
+            for i in 0..n {
+                for j in (i + 1)..n {
+                    if sorted[i] > sorted[j] {
+                        total_inversions += 1.0;
+                    }
+                }
+            }
+        }
+
+        total_inversions
+    };
+
+    evolve(rng, config, &fitness)
+}
+
+/// Maze solving: evolve a program that navigates a simple grid maze.
+/// The program receives (wall_ahead, wall_left, wall_right, goal_direction)
+/// and should output a direction: <0 = left, 0 = forward, >0 = right.
+pub fn maze_solver<R: Rng>(rng: &mut R, config: &GpConfig) -> (Node, f64, Vec<GenStats>) {
+    // Simple maze scenarios: (wall_ahead, wall_left, wall_right, goal_dir) → best action
+    // goal_dir: -1 = left, 0 = ahead, 1 = right
+    let scenarios: Vec<(Vec<f64>, f64)> = vec![
+        // No walls, goal ahead → go forward (0)
+        (vec![0.0, 0.0, 0.0, 0.0], 0.0),
+        // Wall ahead, goal left → go left (-1)
+        (vec![1.0, 0.0, 0.0, -1.0], -1.0),
+        // Wall ahead, goal right → go right (1)
+        (vec![1.0, 0.0, 0.0, 1.0], 1.0),
+        // Wall ahead and left → go right
+        (vec![1.0, 1.0, 0.0, 0.0], 1.0),
+        // Wall ahead and right → go left
+        (vec![1.0, 0.0, 1.0, 0.0], -1.0),
+        // No wall ahead, goal ahead → forward
+        (vec![0.0, 1.0, 1.0, 0.0], 0.0),
+        // Wall left, goal left → forward (can't go left)
+        (vec![0.0, 1.0, 0.0, -1.0], 0.0),
+        // Wall right, goal right → forward (can't go right)
+        (vec![0.0, 0.0, 1.0, 1.0], 0.0),
+        // All walls except behind → shouldn't happen but handle gracefully
+        (vec![1.0, 1.0, 1.0, 0.0], 0.0),
+        // No walls, goal left → go left
+        (vec![0.0, 0.0, 0.0, -1.0], -1.0),
+        // No walls, goal right → go right
+        (vec![0.0, 0.0, 0.0, 1.0], 1.0),
+    ];
+
+    let fitness = move |tree: &Node| -> f64 {
+        let mut interp = Interpreter::default();
+        let mut total_error = 0.0;
+
+        for (inputs, expected) in &scenarios {
+            interp.reset();
+            match interp.eval(tree, inputs) {
+                Ok(val) => {
+                    let output = val.to_f64();
+                    // Classify output: <-0.3 = left, >0.3 = right, else = forward
+                    let action = if output < -0.3 {
+                        -1.0
+                    } else if output > 0.3 {
+                        1.0
+                    } else {
+                        0.0
+                    };
+                    if (action - expected).abs() > 0.5 {
+                        total_error += 1.0;
+                    }
+                }
+                Err(_) => total_error += 1.0,
+            }
+        }
+
+        total_error
+    };
+
+    evolve(rng, config, &fitness)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -185,6 +311,40 @@ mod tests {
         assert!(!stats.is_empty());
         // Should at least improve from random
         assert!(best_fit < 1e6);
+    }
+
+    #[test]
+    fn test_sorting_network() {
+        let mut rng = rand::rngs::StdRng::seed_from_u64(42);
+        let config = GpConfig {
+            population_size: 100,
+            max_generations: 30,
+            max_depth: 4,
+            num_vars: 2,
+            ..GpConfig::default()
+        };
+
+        let (_best, best_fit, stats) = sorting_network(&mut rng, 4, &config);
+        assert!(!stats.is_empty());
+        // Should improve from random
+        assert!(best_fit < 1000.0);
+    }
+
+    #[test]
+    fn test_maze_solver() {
+        let mut rng = rand::rngs::StdRng::seed_from_u64(42);
+        let config = GpConfig {
+            population_size: 200,
+            max_generations: 50,
+            max_depth: 5,
+            num_vars: 4,
+            ..GpConfig::default()
+        };
+
+        let (_best, best_fit, stats) = maze_solver(&mut rng, &config);
+        assert!(!stats.is_empty());
+        // 11 scenarios, should get some right
+        assert!(best_fit <= 11.0);
     }
 
     #[test]

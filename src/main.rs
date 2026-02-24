@@ -1,8 +1,12 @@
 use genlang::genetic::GpConfig;
 use genlang::io::{save_genome, save_stats, SavedGenome};
 use genlang::island::{island_evolve, IslandConfig};
+use genlang::novelty::{novelty_evolve, NoveltyConfig};
 use genlang::pareto::{nsga2_evolve, NsgaConfig};
-use genlang::problems::{even_parity, fibonacci, generate_data, symbolic_regression};
+use genlang::problems::{
+    even_parity, fibonacci, generate_data, maze_solver, sorting_network, symbolic_regression,
+};
+use genlang::speciation::{speciated_evolve, SpeciationConfig};
 use genlang::visualization::{print_evolution_summary, sparkline, to_mermaid, tree_print};
 use rand::SeedableRng;
 
@@ -22,6 +26,14 @@ fn main() {
     demo_island_model();
     println!();
     demo_multi_objective();
+    println!();
+    demo_sorting();
+    println!();
+    demo_maze();
+    println!();
+    demo_novelty_search();
+    println!();
+    demo_speciation();
 }
 
 fn demo_symbolic_regression() {
@@ -255,5 +267,146 @@ fn demo_multi_objective() {
             sol.objectives[1],
             sol.genome.to_expr()
         );
+    }
+}
+
+fn demo_sorting() {
+    println!("🔀 Demo 6: Sorting Network Evolution (4 elements)");
+    println!("--------------------------------------------------");
+
+    let config = GpConfig {
+        population_size: 300,
+        max_generations: 60,
+        max_depth: 4,
+        num_vars: 2,
+        ..GpConfig::default()
+    };
+
+    let mut rng = rand::rngs::StdRng::seed_from_u64(42);
+    let (best, best_fit, stats) = sorting_network(&mut rng, 4, &config);
+
+    print_evolution_summary(&stats);
+    println!(
+        "  🏆 Best comparator: {} (inversions: {:.0})",
+        best.to_expr(),
+        best_fit
+    );
+}
+
+fn demo_maze() {
+    println!("🧭 Demo 7: Maze Solver Evolution");
+    println!("----------------------------------");
+
+    let config = GpConfig {
+        population_size: 300,
+        max_generations: 60,
+        max_depth: 5,
+        num_vars: 4,
+        ..GpConfig::default()
+    };
+
+    let mut rng = rand::rngs::StdRng::seed_from_u64(42);
+    let (best, best_fit, stats) = maze_solver(&mut rng, &config);
+
+    print_evolution_summary(&stats);
+    println!("  🏆 Best: {} (errors: {:.0}/11)", best.to_expr(), best_fit);
+}
+
+fn demo_novelty_search() {
+    println!("🔍 Demo 8: Novelty Search");
+    println!("-------------------------");
+
+    let config = NoveltyConfig {
+        gp: GpConfig {
+            population_size: 100,
+            max_generations: 30,
+            max_depth: 4,
+            num_vars: 1,
+            ..GpConfig::default()
+        },
+        k_nearest: 10,
+        fitness_weight: 0.0,
+        ..NoveltyConfig::default()
+    };
+
+    let mut rng = rand::rngs::StdRng::seed_from_u64(42);
+
+    let behavior_fn = |tree: &genlang::ast::Node| -> Vec<f64> {
+        let mut interp = genlang::interpreter::Interpreter::default();
+        (-3..=3)
+            .map(|i| {
+                interp.reset();
+                interp
+                    .eval(tree, &[i as f64])
+                    .map(|v| v.to_f64().clamp(-100.0, 100.0))
+                    .unwrap_or(0.0)
+            })
+            .collect()
+    };
+
+    let fitness_fn = |_: &genlang::ast::Node| -> f64 { 0.0 };
+
+    let (archive, stats) = novelty_evolve(&mut rng, &config, &behavior_fn, &fitness_fn);
+
+    let novelties: Vec<f64> = stats.iter().map(|s| s.best_fitness).collect();
+    println!("  Novelty: {}", sparkline(&novelties));
+    println!("  Archive size: {} unique behaviors", archive.len());
+    if let Some(most_novel) = archive.iter().max_by(|a, b| {
+        a.novelty_score
+            .partial_cmp(&b.novelty_score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    }) {
+        println!(
+            "  Most novel: {} (score: {:.2})",
+            most_novel.genome.to_expr(),
+            most_novel.novelty_score
+        );
+    }
+}
+
+fn demo_speciation() {
+    println!("🧬 Demo 9: Speciated Evolution (NEAT-inspired)");
+    println!("-----------------------------------------------");
+
+    let config = SpeciationConfig {
+        gp: GpConfig {
+            population_size: 200,
+            max_generations: 50,
+            max_depth: 5,
+            num_vars: 1,
+            ..GpConfig::default()
+        },
+        compatibility_threshold: 5.0,
+        max_stagnation: 15,
+        min_species_size: 5,
+    };
+
+    let mut rng = rand::rngs::StdRng::seed_from_u64(42);
+
+    // Target: x^2 - 3x + 2
+    let fitness = |tree: &genlang::ast::Node| -> f64 {
+        let mut interp = genlang::interpreter::Interpreter::default();
+        let mut error = 0.0;
+        for i in -5..=5 {
+            let x = i as f64;
+            interp.reset();
+            match interp.eval(tree, &[x]) {
+                Ok(val) => {
+                    let diff = val.to_f64() - (x * x - 3.0 * x + 2.0);
+                    error += diff * diff;
+                }
+                Err(_) => error += 1e6,
+            }
+        }
+        error / 11.0
+    };
+
+    let (best, best_fit, stats) = speciated_evolve(&mut rng, &config, &fitness);
+
+    print_evolution_summary(&stats);
+    println!("  🏆 Best: {} (MSE: {:.6})", best.to_expr(), best_fit);
+    println!("\n  🌳 Tree:");
+    for line in tree_print(&best).lines() {
+        println!("    {line}");
     }
 }
