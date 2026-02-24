@@ -1,8 +1,12 @@
+pub mod adf;
 pub mod ast;
+pub mod cartpole;
+pub mod coevolution;
 pub mod genetic;
 pub mod interpreter;
 pub mod io;
 pub mod island;
+pub mod map_elites;
 pub mod novelty;
 pub mod pareto;
 pub mod problems;

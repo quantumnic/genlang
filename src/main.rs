@@ -1,6 +1,10 @@
+use genlang::adf::{adf_evolve, eval_adf_program, AdfConfig};
+use genlang::cartpole::{cart_pole, simulate, CartPoleParams};
+use genlang::coevolution::{coevolve, CoevConfig, Outcome};
 use genlang::genetic::GpConfig;
 use genlang::io::{save_genome, save_stats, SavedGenome};
 use genlang::island::{island_evolve, IslandConfig};
+use genlang::map_elites::{map_elites_evolve, MapElitesConfig};
 use genlang::novelty::{novelty_evolve, NoveltyConfig};
 use genlang::pareto::{nsga2_evolve, NsgaConfig};
 use genlang::problems::{
@@ -34,6 +38,14 @@ fn main() {
     demo_novelty_search();
     println!();
     demo_speciation();
+    println!();
+    demo_cart_pole();
+    println!();
+    demo_adfs();
+    println!();
+    demo_map_elites();
+    println!();
+    demo_coevolution();
 }
 
 fn demo_symbolic_regression() {
@@ -409,4 +421,193 @@ fn demo_speciation() {
     for line in tree_print(&best).lines() {
         println!("    {line}");
     }
+}
+
+fn demo_cart_pole() {
+    println!("⚖️  Demo 10: Cart-Pole Balancing");
+    println!("---------------------------------");
+
+    let config = GpConfig {
+        population_size: 300,
+        max_generations: 60,
+        max_depth: 5,
+        num_vars: 4, // x, x_dot, theta, theta_dot
+        ..GpConfig::default()
+    };
+    let params = CartPoleParams {
+        max_steps: 500,
+        ..CartPoleParams::default()
+    };
+
+    let mut rng = rand::rngs::StdRng::seed_from_u64(42);
+    let (best, best_fit, stats) = cart_pole(&mut rng, &config, &params);
+
+    print_evolution_summary(&stats);
+    let steps = simulate(&best, &params);
+    println!(
+        "  🏆 Best controller: {} (survived: {} steps, fitness: {:.1})",
+        best.to_expr(),
+        steps,
+        best_fit
+    );
+    println!("  (max possible: {} steps)", params.max_steps);
+}
+
+fn demo_adfs() {
+    println!("🧩 Demo 11: Automatically Defined Functions (ADFs)");
+    println!("---------------------------------------------------");
+
+    let config = AdfConfig {
+        gp: GpConfig {
+            population_size: 200,
+            max_generations: 50,
+            max_depth: 5,
+            num_vars: 1,
+            ..GpConfig::default()
+        },
+        num_adfs: 2,
+        adf_arity: 2,
+    };
+
+    let mut rng = rand::rngs::StdRng::seed_from_u64(42);
+
+    // Target: x^3 + x^2 + x (benefits from reusable x^2 subroutine)
+    let fitness = |prog: &genlang::adf::AdfProgram| -> f64 {
+        let mut interp = genlang::interpreter::Interpreter::default();
+        let mut error = 0.0;
+        for i in -5..=5 {
+            let x = i as f64;
+            interp.reset();
+            match eval_adf_program(&mut interp, prog, &[x]) {
+                Ok(val) => {
+                    let diff = val.to_f64() - (x * x * x + x * x + x);
+                    error += diff * diff;
+                }
+                Err(_) => error += 1e6,
+            }
+        }
+        error / 11.0
+    };
+
+    let (best, best_fit, stats) = adf_evolve(&mut rng, &config, &fitness);
+
+    print_evolution_summary(&stats);
+    println!("  🏆 Best (MSE: {:.4}):", best_fit);
+    for line in best.to_string_pretty().lines() {
+        println!("    {line}");
+    }
+}
+
+fn demo_map_elites() {
+    println!("🗺️  Demo 12: MAP-Elites (Quality-Diversity)");
+    println!("--------------------------------------------");
+
+    let config = MapElitesConfig {
+        iterations: 3000,
+        initial_pop: 100,
+        max_depth: 5,
+        max_tree_size: 60,
+        num_vars: 1,
+        bins_per_dim: 8,
+        behavior_ranges: vec![(-10.0, 10.0), (0.0, 40.0)],
+        mutation_rate: 0.7,
+    };
+
+    let mut rng = rand::rngs::StdRng::seed_from_u64(42);
+
+    // Fitness: accuracy on x^2
+    let fitness_fn = |tree: &genlang::ast::Node| -> f64 {
+        let mut interp = genlang::interpreter::Interpreter::default();
+        let mut error = 0.0;
+        for i in -5..=5 {
+            let x = i as f64;
+            interp.reset();
+            match interp.eval(tree, &[x]) {
+                Ok(val) => {
+                    let diff = val.to_f64() - x * x;
+                    error += diff * diff;
+                }
+                Err(_) => error += 1e6,
+            }
+        }
+        error / 11.0
+    };
+
+    // Behavior: (output at x=0, program size)
+    let behavior_fn = |tree: &genlang::ast::Node| -> Vec<f64> {
+        let mut interp = genlang::interpreter::Interpreter::default();
+        let out = interp
+            .eval(tree, &[0.0])
+            .map(|v| v.to_f64().clamp(-10.0, 10.0))
+            .unwrap_or(0.0);
+        vec![out, tree.size() as f64]
+    };
+
+    let (archive, stats) = map_elites_evolve(&mut rng, &config, &fitness_fn, &behavior_fn);
+
+    let coverages: Vec<f64> = stats.iter().map(|s| s.coverage * 100.0).collect();
+    println!("  Coverage: {}", sparkline(&coverages));
+    println!(
+        "  Filled cells: {} / {} ({:.1}%)",
+        archive.filled(),
+        config.bins_per_dim * config.bins_per_dim,
+        archive.coverage() * 100.0
+    );
+    if let Some(best) = archive.best() {
+        println!(
+            "  🏆 Best: {} (fitness: {:.4})",
+            best.genome.to_expr(),
+            best.fitness
+        );
+    }
+}
+
+fn demo_coevolution() {
+    println!("⚔️  Demo 13: Competitive Coevolution");
+    println!("-------------------------------------");
+
+    let config = CoevConfig {
+        config_a: GpConfig {
+            population_size: 80,
+            max_generations: 30,
+            max_depth: 4,
+            num_vars: 1,
+            ..GpConfig::default()
+        },
+        config_b: GpConfig {
+            population_size: 80,
+            max_generations: 30,
+            max_depth: 4,
+            num_vars: 1,
+            ..GpConfig::default()
+        },
+        sample_opponents: 8,
+        generations: 30,
+    };
+
+    let mut rng = rand::rngs::StdRng::seed_from_u64(42);
+
+    // Number war: each program outputs a number given input 1.0, higher wins
+    let compete = |a: &genlang::ast::Node, b: &genlang::ast::Node| -> Outcome {
+        let mut interp = genlang::interpreter::Interpreter::default();
+        let va = interp.eval(a, &[1.0]).map(|v| v.to_f64()).unwrap_or(0.0);
+        interp.reset();
+        let vb = interp.eval(b, &[1.0]).map(|v| v.to_f64()).unwrap_or(0.0);
+        if va > vb + 0.01 {
+            Outcome::Win
+        } else if vb > va + 0.01 {
+            Outcome::Loss
+        } else {
+            Outcome::Draw
+        }
+    };
+
+    let (best_a, best_b, stats) = coevolve(&mut rng, &config, &compete);
+
+    let fit_a: Vec<f64> = stats.iter().map(|s| -s.best_fitness_a).collect();
+    let fit_b: Vec<f64> = stats.iter().map(|s| -s.best_fitness_b).collect();
+    println!("  Pop A win rate: {}", sparkline(&fit_a));
+    println!("  Pop B win rate: {}", sparkline(&fit_b));
+    println!("  🏆 Best A: {}", best_a.to_expr());
+    println!("  🏆 Best B: {}", best_b.to_expr());
 }

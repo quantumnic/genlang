@@ -1,55 +1,75 @@
 {
-  "version": "0.2.0",
-  "fitness": 0.0,
+  "version": "0.4.0",
+  "fitness": 0.9047619047619,
   "generation": null,
   "description": "symbolic regression: x² + x + 1",
   "genome": {
-    "BinOp": [
-      "Add",
+    "If": [
       {
-        "MathFn": [
-          "Abs",
+        "MemWrite": [
           {
-            "MathFn": [
-              "Abs",
+            "IntConst": 2
+          },
+          {
+            "BinOp": [
+              "Mul",
               {
-                "BinOp": [
-                  "Mul",
+                "Var": 0
+              },
+              {
+                "Loop": [
                   {
-                    "Var": 0
+                    "IntConst": 1
                   },
                   {
-                    "Var": 0
-                  }
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      {
-        "BinOp": [
-          "Div",
-          {
-            "MathFn": [
-              "Abs",
-              {
-                "BinOp": [
-                  "Add",
-                  {
-                    "MathFn": [
-                      "Abs",
+                    "MemWrite": [
+                      {
+                        "IntConst": 4
+                      },
                       {
                         "MathFn": [
                           "Abs",
                           {
-                            "BinOp": [
-                              "Mul",
+                            "MemWrite": [
                               {
-                                "Var": 0
+                                "IntConst": 1
                               },
                               {
-                                "Var": 0
+                                "Loop": [
+                                  {
+                                    "IntConst": 5
+                                  },
+                                  {
+                                    "BinOp": [
+                                      "Add",
+                                      {
+                                        "Var": 0
+                                      },
+                                      {
+                                        "BinOp": [
+                                          "Mul",
+                                          {
+                                            "Var": 0
+                                          },
+                                          {
+                                            "Var": 0
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "BinOp": [
+                                      "Mul",
+                                      {
+                                        "Var": 0
+                                      },
+                                      {
+                                        "Var": 0
+                                      }
+                                    ]
+                                  }
+                                ]
                               }
                             ]
                           }
@@ -58,10 +78,8 @@
                     ]
                   },
                   {
-                    "If": [
-                      {
-                        "Var": 0
-                      },
+                    "BinOp": [
+                      "Mul",
                       {
                         "Var": 0
                       },
@@ -73,11 +91,99 @@
                 ]
               }
             ]
-          },
-          {
-            "Var": 0
           }
         ]
+      },
+      {
+        "Loop": [
+          {
+            "IntConst": 1
+          },
+          {
+            "MemWrite": [
+              {
+                "IntConst": 4
+              },
+              {
+                "MathFn": [
+                  "Abs",
+                  {
+                    "MemWrite": [
+                      {
+                        "IntConst": 1
+                      },
+                      {
+                        "Loop": [
+                          {
+                            "IntConst": 5
+                          },
+                          {
+                            "BinOp": [
+                              "Add",
+                              {
+                                "Var": 0
+                              },
+                              {
+                                "BinOp": [
+                                  "Mul",
+                                  {
+                                    "MathFn": [
+                                      "Exp",
+                                      {
+                                        "MathFn": [
+                                          "Log",
+                                          {
+                                            "Var": 0
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "MathFn": [
+                                      "Exp",
+                                      {
+                                        "MathFn": [
+                                          "Log",
+                                          {
+                                            "Var": 0
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "MathFn": [
+                              "Exp",
+                              {
+                                "MathFn": [
+                                  "Log",
+                                  {
+                                    "Var": 0
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "IntConst": 1
+          }
+        ]
+      },
+      {
+        "IntConst": 1
       }
     ]
   }
